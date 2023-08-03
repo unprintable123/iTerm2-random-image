@@ -16,7 +16,7 @@ images_temp = os.listdir(image_dir)
 blend_re = re.compile("_blend\(([^)]*)\)")
 
 
-def blend_value(s, default=0.25):
+def get_blend_value(s, default=0.30):
     m = re.findall(blend_re, s)
     if len(m) == 0:
         return default
@@ -26,7 +26,7 @@ def blend_value(s, default=0.25):
 
 images = list(
     map(
-        lambda p: (os.path.join(image_dir, p), blend_value(p)),
+        lambda p: (os.path.join(image_dir, p), get_blend_value(p)),
         filter(lambda s: not s.startswith("."), images_temp),
     )
 )
@@ -37,7 +37,7 @@ print(images)
 async def main(connection):
     app = await iterm2.async_get_app(connection)
 
-    async def change_pic(session_id):
+    async def change_pic(session_id, steps: int = 10, duration: float = 0.15):
         session = app.get_session_by_id(session_id)
         profile = await session.async_get_profile()
         print("Session ID {} created".format(session_id))
@@ -45,9 +45,9 @@ async def main(connection):
         await profile.async_set_blend(0)
         await profile.async_set_background_image_location(p)
 
-        async def change_blend(b: float, steps: int = 10):
+        async def change_blend(b: float):
             b = max(0.0, min(1.0, b))
-            frame = 0.1 / steps
+            frame = duration / steps
             i = 0
             while i < steps:
                 s = asyncio.sleep(frame)
@@ -57,8 +57,10 @@ async def main(connection):
 
         await change_blend(blend)
 
+    await asyncio.sleep(0.4)
+
     await iterm2.EachSessionOnceMonitor.async_foreach_session_create_task(
-        app, change_pic
+        app, lambda s: change_pic(s, steps=10, duration=0.1)
     )
 
     async with iterm2.NewSessionMonitor(connection) as mon:
